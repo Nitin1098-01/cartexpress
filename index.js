@@ -38,15 +38,43 @@ app.get("/users", async (req, res) => {
   res.json(cleanResult);
 });
 
+app.get("/customer", async (req, res) => {
+  let userdetail = {};
+  try {
+    userdetail = await db.query("SELECT * FROM users WHERE roleid=0;");
+  } catch (e) {
+    console.log(e);
+  }
+  let cleanResult = userdetail.rows.map(row => {
+    delete row.password;
+    return row;
+  });
+  res.json(cleanResult);
+});
+
+app.get("/seller", async (req, res) => {
+  let userdetail = {};
+  try {
+    userdetail = await db.query("SELECT * FROM users WHERE roleid=1;");
+  } catch (e) {
+    console.log(e);
+  }
+  let cleanResult = userdetail.rows.map(row => {
+    delete row.password;
+    return row;
+  });
+  res.json(cleanResult);
+});
+
 app.post("/signup", async (req, res) => {
   //Return success message if successful, else show success false and message
 
-  let { username, password, phone, email } = req.body;
+  let { username, password, number, email, roleid } = req.body;
   let passHash = bcrypt.hashSync(password, 10);
   let result = {};
   try {
     result = await db.query(
-      `INSERT into users (username,password,phone,email,isAdmin) values ('${username}','${passHash}','${phone}','${email}',false)`
+      `INSERT into users (username,password,phone,email,roleid) values ('${username}','${passHash}','${number}','${email}','${roleid}')`
     );
   } catch (error) {
     console.log(error);
@@ -166,7 +194,17 @@ app.post("/addcart", async (req, res) => {
     const { product_id } = req.body.data;
     console.log("The request ", req.body);
     console.log(usr);
-
+    let selectProductsResult = await db.query(
+      `SELECT * FROM cart WHERE product_id = ${product_id} AND user_id=${usr.userid};`
+    );
+    if (selectProductsResult.rowCount != 0) {
+      //There are products already
+      res.json({
+        success: false,
+        message: "Already exists"
+      });
+      return;
+    }
     if (usr) {
       let result = await db.query(
         `INSERT INTO cart (product_id,user_id) VALUES (${product_id},${usr.userid});`
@@ -211,6 +249,12 @@ app.get("/viewcart", async (req, res) => {
       });
       return;
     }
+    let cartcount = await db.query(`SELECT COUNT(*) FROM cart;`);
+    console.log(cartcount);
+    res.json({
+      success: true,
+      data: cartcount
+    });
   } catch (error) {
     res.status(400).json({
       success: false,
@@ -235,6 +279,17 @@ app.post("/addfavorite", async (req, res) => {
     console.log("The request ", req.body);
     console.log(usr);
 
+    let selectProductsResult = await db.query(
+      `SELECT * FROM favorite WHERE product_id = ${product_id} AND user_id=${usr.userid};`
+    );
+    if (selectProductsResult.rowCount != 0) {
+      //There are products already
+      res.json({
+        success: false,
+        message: "Already exists"
+      });
+      return;
+    }
     if (usr) {
       let result = await db.query(
         `INSERT INTO favorite (product_id,user_id) VALUES (${product_id},${usr.userid});`
@@ -288,6 +343,7 @@ app.get("/viewfavorite", async (req, res) => {
 
 app.post("/startpayment", async (req, res) => {
   console.log(req.body);
+  let amount = req.body.price;
   const paymentIntent = await stripe.paymentIntents.create({
     amount: Math.ceil(req.body.price),
     currency: "inr"
@@ -301,7 +357,73 @@ app.post("/startpayment", async (req, res) => {
     });
     return;
   }
-  res.send(paymentIntent.client_secret);
+  let usr = null;
+  try {
+    usr = jwt.verify(req.headers.authorization, "1234567890!@#^&*()_qwiasjm");
+    console.log(usr);
+    if (usr) {
+      let result = await db.query(`INSERT INTO transaction(user_id,totalprice,isPaymentDone) VALUES(${usr.userid},${amount},false) RETURNING purchaseid;
+    `);
+      console.log("RESULT FROM insert QUERY,", result);
+      res.json({
+        success: true,
+        data: {
+          result: result.rows[0].purchaseid,
+          client_secret: paymentIntent.client_secret
+        }
+      });
+      return;
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(400).json({
+      success: false,
+      message: error
+    });
+  }
 });
 
+app.post("/donepayment", (req, res) => {
+  let transactionid = req.body.transactionid;
+  let purchaseid = req.body.purchaseid;
+
+  let result = db.query(
+    `UPDATE transaction SET transactionid= '${transactionid}',ispaymentdone=true WHERE purchaseid= ${purchaseid};`
+  );
+  res.json({
+    success: true,
+    message: "Transaction is Successful"
+  });
+  return;
+});
+
+app.post("/dummypost", (req, res) => {
+  res.json({
+    body: req.body,
+    headers: req.headers
+  });
+});
+
+app.post("/addNewProduct", async (req, res) => {
+  console.log(req.headers);
+  console.log(req.body);
+
+  const { name, desc, quantity, price, image } = req.body;
+  // if (!req.headers.authorization) {
+  //   res.status(400).json({
+  //     success: false,
+  //     message: "Authorization failed... Try Again"
+  //   });
+  //   return;
+  // }
+
+  let result = await db.query(
+    `INSERT INTO products (productname,description,quantity,price,image) VALUES('${name}','${desc}',${quantity},${price},'${image}');`
+  );
+  res.json({
+    success: true,
+    message: "New Product inserted Successfully"
+  });
+  return;
+});
 app.listen(4000);
