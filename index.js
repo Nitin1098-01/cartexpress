@@ -64,6 +64,18 @@ app.post("/delete", async (req, res) => {
   return;
 });
 
+app.post("/deletefav", async (req, res) => {
+  console.log("The request ", req.body);
+  let result = await db.query(
+    `DELETE FROM favorite WHERE product_id= ${req.body.product_id};`
+  );
+  res.json({
+    success: true,
+    message: "Deleted Successfully"
+  });
+  return;
+});
+
 app.get("/seller", async (req, res) => {
   let userdetail = {};
   try {
@@ -339,7 +351,7 @@ app.get("/viewfavorite", async (req, res) => {
 
     if (usr) {
       let result = await db.query(
-        `SELECT users.username, products.productname, products.image, products.description, products.quantity, products.price FROM users, products, favorite WHERE users.userid = ${usr.userid} AND users.userid = favorite.user_id AND products.productId = favorite.product_id;`
+        `SELECT products.productid ,users.username, products.productname, products.image, products.description, products.quantity, products.price FROM users, products, favorite WHERE users.userid = ${usr.userid} AND users.userid = favorite.user_id AND products.productId = favorite.product_id;`
       );
       res.json({
         success: true,
