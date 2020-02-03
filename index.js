@@ -52,10 +52,24 @@ app.get("/customer", async (req, res) => {
   res.json(cleanResult);
 });
 
+app.post("/delete", async (req, res) => {
+  console.log("The request ", req.body);
+  let result = await db.query(
+    `DELETE FROM users WHERE userid= ${req.body.userid};`
+  );
+  res.json({
+    success: true,
+    message: "Deleted Successfully"
+  });
+  return;
+});
+
 app.get("/seller", async (req, res) => {
   let userdetail = {};
   try {
-    userdetail = await db.query("SELECT * FROM users WHERE roleid=1;");
+    userdetail = await db.query(
+      "SELECT * FROM users WHERE roleid=1 OR roleid=2;"
+    );
   } catch (e) {
     console.log(e);
   }
@@ -362,7 +376,7 @@ app.post("/startpayment", async (req, res) => {
     usr = jwt.verify(req.headers.authorization, "1234567890!@#^&*()_qwiasjm");
     console.log(usr);
     if (usr) {
-      let result = await db.query(`INSERT INTO transaction(user_id,totalprice,isPaymentDone) VALUES(${usr.userid},${amount},false) RETURNING purchaseid;
+      let result = await db.query(`INSERT INTO transaction(user_id,totalprice,isPaymentDone) VALUES(${usr.userid},${amount},true) RETURNING purchaseid;
     `);
       console.log("RESULT FROM insert QUERY,", result);
       res.json({
@@ -426,4 +440,5 @@ app.post("/addNewProduct", async (req, res) => {
   });
   return;
 });
+
 app.listen(4000);
